@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,9 +14,10 @@ import (
 // model is resolved, and every other route passes through unchanged.
 func (s *Server) keyScopeMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if codexOnlyRoute(c.Request.Method, c.FullPath()) && s.handlers != nil && !s.handlers.KeyAllowsProvider(c, "codex") {
+		provider := singleProviderRoute(c.Request.Method, c.FullPath())
+		if provider != "" && s.handlers != nil && !s.handlers.KeyAllowsProvider(c, provider) {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": gin.H{
-				"message": "Codex is not available to this API key",
+				"message": provider + " is not available to this API key",
 				"type":    "invalid_request_error",
 				"param":   nil,
 				"code":    "provider_not_allowed",
@@ -51,3 +53,19 @@ var codexOnlyRoutes = map[string]bool{
 }
 
 func codexOnlyRoute(method, path string) bool { return codexOnlyRoutes[method+" "+path] }
+
+// singleProviderRoute names the provider a route always uses without resolving
+// a model: Codex search and voice, the Muse Code relay (a Meta credential) and
+// the AI Studio websocket relay, where a client registers itself as an
+// aistudio provider that other keys' requests can be routed to.
+func singleProviderRoute(method, path string) string {
+	switch {
+	case codexOnlyRoute(method, path):
+		return "codex"
+	case strings.HasPrefix(path, "/muse-code/") && path != "/muse-code/models":
+		return "meta"
+	case path == "/v1/ws":
+		return "aistudio"
+	}
+	return ""
+}

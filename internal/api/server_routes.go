@@ -138,7 +138,7 @@ func (s *Server) setupRoutes() {
 
 	// Muse Code CLI direct endpoints (beside /v1)
 	museCode := s.engine.Group("/muse-code")
-	museCode.Use(AuthMiddleware(s.accessManager))
+	museCode.Use(AuthMiddleware(s.accessManager), s.keyScopeMiddleware())
 	{
 		museCode.GET("/models", s.museCodeHandler.HandleModels)
 		museCode.GET("/config", s.museCodeHandler.Handle)
@@ -624,7 +624,7 @@ func (s *Server) AttachWebsocketRoute(path string, handler http.Handler) {
 		c.Abort()
 	}
 
-	s.engine.GET(trimmed, conditionalAuth, finalHandler)
+	s.engine.GET(trimmed, conditionalAuth, s.keyScopeMiddleware(), finalHandler)
 }
 
 func (s *Server) handleWebsocketTunnel(c *gin.Context) {
