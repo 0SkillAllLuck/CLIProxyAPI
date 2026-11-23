@@ -65,10 +65,6 @@ func isResponsesToolOutput(item ojson.Result) bool {
 }
 
 // NormalizeKimiResponsesInput normalizes the input array for Kimi Responses API requests.
-// When parallel function calls are emitted, Kimi requires all corresponding tool outputs
-// to follow immediately without intervening non-tool messages (e.g. developer/user messages).
-// This function defers intervening non-tool items until all outputs for the current batch
-// of function calls have been emitted, keeping the outputs contiguous.
 func NormalizeKimiResponsesInput(body []byte) ([]byte, error) {
 	if len(body) == 0 || !ojson.ValidBytes(body) {
 		return body, nil
@@ -84,7 +80,8 @@ func NormalizeKimiResponsesInput(body []byte) ([]byte, error) {
 	return doc.Bytes(), nil
 }
 
-// NormalizeKimiResponsesInputDoc normalizes the input array for Kimi Responses API requests in place on doc.
+// NormalizeKimiResponsesInputDoc keeps parallel tool outputs contiguous and
+// converts Codex agent messages to user messages for Kimi Responses.
 func NormalizeKimiResponsesInputDoc(doc *ojson.Doc) (bool, error) {
 	if doc == nil || doc.Len() == 0 {
 		return false, nil
@@ -186,17 +183,61 @@ func NormalizeKimiResponsesInputDoc(doc *ojson.Doc) (bool, error) {
 		}
 	}
 
-	if !reordered {
-		return false, nil
+	if reordered {
+		rebuilt := make([]string, 0, len(result))
+		for _, it := range result {
+			rebuilt = append(rebuilt, it.Raw)
+		}
+		if errSet := doc.SetRaw("input", "["+strings.Join(rebuilt, ",")+"]"); errSet != nil {
+			return false, fmt.Errorf("normalize kimi responses input: %w", errSet)
+		}
+		items = result
 	}
 
-	rebuilt := make([]string, 0, len(result))
-	for _, it := range result {
-		rebuilt = append(rebuilt, it.Raw)
+	rewritten, errRewrite := normalizeKimiAgentMessagesDoc(doc, items)
+	if errRewrite != nil {
+		return false, fmt.Errorf("normalize kimi agent messages: %w", errRewrite)
 	}
+	return reordered || rewritten, nil
+}
 
-	if errSet := doc.SetRaw("input", "["+strings.Join(rebuilt, ",")+"]"); errSet != nil {
-		return false, fmt.Errorf("normalize kimi responses input: %w", errSet)
+// Convert Codex handoffs to portable user messages without changing other items.
+// Copy encrypted_content strings as text; do not try to decrypt them.
+func normalizeKimiAgentMessagesDoc(doc *ojson.Doc, items []ojson.Result) (bool, error) {
+	changed := false
+	for itemIndex, item := range items {
+		if strings.TrimSpace(item.Get("type").String()) != "agent_message" {
+			continue
+		}
+		itemPath := fmt.Sprintf("input.%d", itemIndex)
+		if content := item.Get("content"); content.IsArray() {
+			for partIndex, part := range content.Array() {
+				if strings.TrimSpace(part.Get("type").String()) != "encrypted_content" {
+					continue
+				}
+				value := part.Get("encrypted_content")
+				if value.Type != ojson.String {
+					continue
+				}
+				partPath := fmt.Sprintf("%s.content.%d", itemPath, partIndex)
+				if errSet := doc.Set(partPath+".type", "input_text"); errSet != nil {
+					return false, errSet
+				}
+				if errSet := doc.Set(partPath+".text", value.String()); errSet != nil {
+					return false, errSet
+				}
+				if errDelete := doc.Delete(partPath + ".encrypted_content"); errDelete != nil {
+					return false, errDelete
+				}
+			}
+		}
+		if errSet := doc.Set(itemPath+".role", "user"); errSet != nil {
+			return false, errSet
+		}
+		if errSet := doc.Set(itemPath+".type", "message"); errSet != nil {
+			return false, errSet
+		}
+		changed = true
 	}
-	return true, nil
+	return changed, nil
 }

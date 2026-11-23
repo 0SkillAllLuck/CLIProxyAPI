@@ -144,6 +144,30 @@ func TestResolveKimiClaudeBaseURL(t *testing.T) {
 }
 
 func TestNormalizeKimiResponsesInput(t *testing.T) {
+	t.Run("Codex handoff is portable and idempotent without tool calls", func(t *testing.T) {
+		const handoff = `{"input":[{"type":"agent_message","id":"amsg_1","author":"/root","recipient":"/root/worker","content":[{"type":"encrypted_content","encrypted_content":"fake \"handoff\"\n"}]},{"type":"agent_message","id":"amsg_2"}]}`
+		firstPass, errFirst := NormalizeKimiResponsesInput([]byte(handoff))
+		if errFirst != nil {
+			t.Fatal(errFirst)
+		}
+		const want = `{"input":[{"type":"message","id":"amsg_1","author":"/root","recipient":"/root/worker","content":[{"type":"input_text","text":"fake \"handoff\"\n"}],"role":"user"},{"type":"message","id":"amsg_2","role":"user"}]}`
+		if string(firstPass) != want {
+			t.Fatalf("normalized handoff = %s, want %s", firstPass, want)
+		}
+		secondPass, errSecond := NormalizeKimiResponsesInput(firstPass)
+		if errSecond != nil || !bytes.Equal(secondPass, firstPass) {
+			t.Fatalf("normalizing twice = %s, err = %v", secondPass, errSecond)
+		}
+	})
+
+	t.Run("non-array input remains untouched", func(t *testing.T) {
+		const input = `{"input":"hello"}`
+		normalized, errNormalize := NormalizeKimiResponsesInput([]byte(input))
+		if errNormalize != nil || string(normalized) != input {
+			t.Fatalf("normalizing text input = %s, err = %v", normalized, errNormalize)
+		}
+	})
+
 	t.Run("interleaved developer message between parallel outputs", func(t *testing.T) {
 		inputJSON := []byte(`{
 			"model": "kimi-k3",
