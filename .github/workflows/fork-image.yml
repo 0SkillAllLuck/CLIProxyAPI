@@ -1,0 +1,101 @@
+# Fork-only: builds the patched image into private GHCR. Upstream's own
+# workflows are disabled in this fork's Actions settings, so they never run.
+name: fork-image
+
+on:
+  push:
+    branches: [patched]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: fork-image-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/0skillallluck/cliproxyapi
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      # Only the packages our patches touch; upstream's full suite has known
+      # failures of its own (TestIssue6825*, Vertex) that are not ours to fix.
+      - name: Test patched packages
+        run: |
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+          mapfile -t pkgs < <(git diff --name-only "${base}..HEAD" -- '*.go' | xargs -r -n1 dirname | sort -u | sed 's|^|./|')
+          go vet "${pkgs[@]}"
+          go test -count=1 -skip 'TestIssue6825|Vertex' "${pkgs[@]}"
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          filter: blob:none
+
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go.mod
+
+      # Same step as upstream's image build, so the catalogs match theirs.
+      - name: Refresh models catalog
+        run: bash .github/scripts/refresh-model-catalogs.sh
+
+      # v<upstream>.<run>: sorts across rebases and rebuilds of one base.
+      - name: Version
+        id: version
+        run: |
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+          {
+            echo "tag=${base}.${GITHUB_RUN_NUMBER}"
+            echo "commit=$(git rev-parse --short HEAD)"
+            echo "date=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          build-args: |
+            VERSION=${{ steps.version.outputs.tag }}
+            COMMIT=${{ steps.version.outputs.commit }}
+            BUILD_DATE=${{ steps.version.outputs.date }}
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.version.outputs.tag }}
+          tags: ${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
