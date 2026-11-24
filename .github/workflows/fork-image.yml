@@ -37,8 +37,10 @@ jobs:
       # failures of its own (TestIssue6825*, Vertex) that are not ours to fix.
       - name: Test patched packages
         run: |
-          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
-          mapfile -t pkgs < <(git diff --name-only "${base}..HEAD" -- '*.go' | xargs -r -n1 dirname | sort -u | sed 's|^|./|')
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*')"
+          [[ "${base}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected base tag ${base}"; exit 1; }
+          go build ./...
+          mapfile -t pkgs < <(git diff --name-only --diff-filter=d "${base}..HEAD" -- '*.go' | xargs -r -n1 dirname | sort -u | sed 's|^|./|')
           if (( ${#pkgs[@]} == 0 )); then
             echo "no patched Go packages"
             exit 0
@@ -74,7 +76,8 @@ jobs:
       - name: Version
         id: version
         run: |
-          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*')"
+          base="$(git describe --tags --abbrev=0 --match 'v[0-9]*.[0-9]*.[0-9]*')"
+          [[ "${base}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::unexpected base tag ${base}"; exit 1; }
           {
             echo "tag=${base}.${GITHUB_RUN_NUMBER}"
             echo "commit=$(git rev-parse --short HEAD)"

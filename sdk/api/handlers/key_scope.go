@@ -15,9 +15,9 @@ import (
 )
 
 // keyScope returns the providers the client API key of the request may use,
-// from its client.key-scopes entry. Once entries exist, a key that matches none
-// gets an empty set. scoped is false only without entries or without a key, and
-// such a request is unrestricted. Key scopes do not apply in Home mode,
+// from its client.key-scopes entry. Once entries exist, a request without a key
+// or with a key that matches none gets an empty set. scoped is false only without
+// entries, and the request is then unrestricted. Key scopes do not apply in Home mode,
 // where Home selects the credential for a model this proxy cannot map to a
 // provider.
 func (h *BaseAPIHandler) keyScope(c *gin.Context) (allowed map[string]struct{}, scoped bool) {
