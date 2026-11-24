@@ -17,18 +17,23 @@ import (
 // keyScope returns the providers the client API key of the request may use,
 // from its client.key-scopes entry. Once entries exist, a request without a key
 // or with a key that matches none gets an empty set. scoped is false only without
-// entries, and the request is then unrestricted. Key scopes do not apply in Home mode,
-// where Home selects the credential for a model this proxy cannot map to a
-// provider.
+// entries, and the request is then unrestricted. A call without a request counts
+// as keyless, so a caller that loses the request fails closed. Key scopes do not
+// apply in Home mode, where Home selects the credential for a model this proxy
+// cannot map to a provider.
 func (h *BaseAPIHandler) keyScope(c *gin.Context) (allowed map[string]struct{}, scoped bool) {
-	if h == nil || c == nil {
+	if h == nil {
 		return nil, false
 	}
 	cfg := h.CurrentConfig()
 	if cfg == nil || h.AuthManager.HomeEnabled() {
 		return nil, false
 	}
-	scope, ok := cfg.Client.KeyScope(c.GetString("userApiKey"))
+	apiKey := ""
+	if c != nil {
+		apiKey = c.GetString("userApiKey")
+	}
+	scope, ok := cfg.Client.KeyScope(apiKey)
 	if !ok {
 		return nil, false
 	}
@@ -81,10 +86,13 @@ func (h *BaseAPIHandler) scopePluginExecutor(ctx context.Context, modelName, plu
 // model that only other providers serve is reported as not found, the answer
 // an unknown model gets.
 func (h *BaseAPIHandler) scopeProviders(ctx context.Context, modelName string, providers []string) ([]string, *interfaces.ErrorMessage) {
-	if len(providers) == 0 || ctx == nil {
+	if len(providers) == 0 {
 		return providers, nil
 	}
-	ginCtx, _ := ctx.Value("gin").(*gin.Context)
+	var ginCtx *gin.Context
+	if ctx != nil {
+		ginCtx, _ = ctx.Value("gin").(*gin.Context)
+	}
 	allowed, scoped := h.keyScope(ginCtx)
 	if !scoped {
 		return providers, nil

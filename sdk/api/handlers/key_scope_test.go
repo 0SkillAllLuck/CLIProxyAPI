@@ -163,9 +163,9 @@ func TestScopeProvidersNarrowsAndRejects(t *testing.T) {
 		t.Fatal("a key matching no entry kept its providers")
 	}
 
-	providers, errMsg = handler.scopeProviders(context.Background(), keyScopeCodexModel, []string{"codex"})
-	if errMsg != nil || len(providers) != 1 {
-		t.Fatalf("context without a request = %v, %v; want the providers unchanged", providers, errMsg)
+	// A call that lost its request counts as keyless and fails closed.
+	if _, errMsg = handler.scopeProviders(context.Background(), keyScopeCodexModel, []string{"codex"}); errMsg == nil {
+		t.Fatal("a context without a request kept its providers")
 	}
 }
 

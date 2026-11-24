@@ -28,12 +28,14 @@ Provider names are executor identifiers: `claude`, `codex`, `antigravity`,
 an openai-compatibility entry after any provider name above or an alias
 (`anthropic`, `openai`, `chatgpt`, `muse`, `grok`): scoping to it would also grant
 that subscription provider.
-Never enable `home`: key scopes do not apply in Home mode.
+Never start it in Home mode (`-home-jwt` or `HOME_JWT`): key scopes do not apply
+there.
 
 Once any `client.key-scopes` entry exists, scoping fails closed: a request
 without a key, a key that matches no `key-prefix`, or one whose entry lists no
-provider may use no provider at all. So even an emptied `access.api-keys` or a
-disabled `ws-auth` doesn't open the proxy while scopes are configured.
+provider may use no provider at all, and so may a call that lost its request.
+So even an emptied `access.api-keys` or a disabled `ws-auth` doesn't open the
+proxy while scopes are configured.
 
 Entries under `api-keys.claude` count as `claude`, so put GLM under
 `api-keys.openai-compatibility`. Keep `oauth.providers.aistudio.ws-auth: true`
@@ -59,9 +61,10 @@ client:
 ```bash
 git fetch upstream --tags
 git rebase --onto vNEW vOLD patched   # fix conflicts, drop patches upstream merged
-# Upstream workflows are disabled one by one, so a new one would run in the fork
-# (e.g. publish an unpatched image). Read every new workflow before pushing:
-git diff --name-only --diff-filter=A vOLD vNEW -- .github/workflows
+# Upstream workflows are disabled one by one, so a new one runs in the fork as
+# soon as the push below triggers it. Stop if this lists anything: delete those
+# files in the fork CI commit, push, then disable them in the fork's settings.
+git diff --name-only --diff-filter=AR vOLD vNEW -- .github/workflows
 git push origin vNEW                  # describe needs the base tag in the fork
 git push --force-with-lease origin patched
 # Then disable everything active except fork-image.yml:
