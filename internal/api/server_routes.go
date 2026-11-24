@@ -158,6 +158,13 @@ func (s *Server) setupRoutes() {
 
 	// Root endpoint
 	s.engine.GET("/", func(c *gin.Context) {
+		// Browsers land on the control panel; API clients keep the JSON below.
+		if strings.Contains(c.GetHeader("Accept"), "text/html") {
+			if cfg := s.getConfig(); cfg != nil && !cfg.Home.Enabled && !cfg.RemoteManagement.DisableControlPanel {
+				c.Redirect(http.StatusFound, "/management.html")
+				return
+			}
+		}
 		c.JSON(http.StatusOK, gin.H{
 			"message": "CLI Proxy API Server",
 			"endpoints": []string{

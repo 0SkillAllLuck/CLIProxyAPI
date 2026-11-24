@@ -4073,3 +4073,31 @@ func testServerResponsesWebsocketReauthorizesEachTurn(t *testing.T, requestLog b
 		}
 	})
 }
+
+func TestRootRedirectsBrowsersToControlPanel(t *testing.T) {
+	server := newTestServer(t)
+	get := func(accept string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		if accept != "" {
+			req.Header.Set("Accept", accept)
+		}
+		rr := httptest.NewRecorder()
+		server.engine.ServeHTTP(rr, req)
+		return rr
+	}
+	const browser = "text/html,application/xhtml+xml,*/*;q=0.8"
+
+	if rr := get(browser); rr.Code != http.StatusFound || rr.Header().Get("Location") != "/management.html" {
+		t.Fatalf("browser: status = %d, location = %q", rr.Code, rr.Header().Get("Location"))
+	}
+	for _, accept := range []string{"", "application/json", "*/*"} {
+		if rr := get(accept); rr.Code != http.StatusOK || !strings.Contains(rr.Body.String(), "CLI Proxy API Server") {
+			t.Fatalf("accept %q: status = %d body=%s", accept, rr.Code, rr.Body.String())
+		}
+	}
+
+	server.cfg.RemoteManagement.DisableControlPanel = true
+	if rr := get(browser); rr.Code != http.StatusOK {
+		t.Fatalf("panel disabled: status = %d, want JSON", rr.Code)
+	}
+}

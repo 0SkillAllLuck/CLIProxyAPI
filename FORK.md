@@ -17,6 +17,7 @@ One commit each, oldest first. Drop a commit once upstream ships the fix.
 | feat(access): scope client API keys to providers (#6568) | per-key provider allowlist (`client.key-scopes`) |
 | fix(access): scope Muse Code and AI Studio relay routes | ours: closes two routes #6568 leaves open |
 | fix(access): fail closed on unmatched keys and empty scopes | ours: #6568 lets such keys use every provider |
+| feat(api): send browsers from / to the control panel | ours: the panel opens at the bare host |
 
 Muse needs no patch: v8.1.2 already serves the Muse CLI endpoints.
 
