@@ -20,10 +20,14 @@ import (
 // where Home selects the credential for a model this proxy cannot map to a
 // provider.
 func (h *BaseAPIHandler) keyScope(c *gin.Context) (allowed map[string]struct{}, scoped bool) {
-	if h == nil || h.Cfg == nil || c == nil || h.AuthManager.HomeEnabled() {
+	if h == nil || c == nil {
 		return nil, false
 	}
-	scope, ok := h.Cfg.Client.KeyScope(c.GetString("userApiKey"))
+	cfg := h.CurrentConfig()
+	if cfg == nil || h.AuthManager.HomeEnabled() {
+		return nil, false
+	}
+	scope, ok := cfg.Client.KeyScope(c.GetString("userApiKey"))
 	if !ok {
 		return nil, false
 	}

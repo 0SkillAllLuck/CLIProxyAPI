@@ -54,7 +54,7 @@ func TestKeyScopeMiddlewareOnCodexRoutes(t *testing.T) {
 		want    map[string]int
 	}{
 		{name: "local", want: map[string]int{
-			"sk-codex-test": 204, "sk-openai-test": 204, "legacy-key": 204,
+			"sk-codex-test": 204, "sk-openai-test": 204, "legacy-key": 403,
 			"sk-claude-test": 403, "sk-muse-test": 403, "sk-grok-test": 403,
 		}},
 		// Key scopes do not apply in Home mode.
@@ -166,7 +166,8 @@ func TestVoiceAndSearchKeyScopesOnServer(t *testing.T) {
 		server.handlers.Cfg.Client = codexKeyScopeClient()
 		for route := range codexOnlyRoutes {
 			method, pattern, _ := strings.Cut(route, " ")
-			for _, key := range []string{"sk-claude-test", "sk-muse-test", "sk-grok-test"} {
+			// legacy-key matches no key-prefix, so it may use no provider.
+			for _, key := range []string{"sk-claude-test", "sk-muse-test", "sk-grok-test", "legacy-key"} {
 				recorder := serve(method, codexRoutePath(pattern), key, "")
 				if recorder.Code != http.StatusForbidden || keyScopeErrorCode(recorder.Body.Bytes()) != "provider_not_allowed" {
 					t.Errorf("%s with %s: status=%d body=%s", route, key, recorder.Code, recorder.Body.String())
@@ -178,9 +179,9 @@ func TestVoiceAndSearchKeyScopesOnServer(t *testing.T) {
 		}
 	})
 
-	t.Run("Codex keys and unscoped keys reach voice and search", func(t *testing.T) {
+	t.Run("Codex keys reach voice and search", func(t *testing.T) {
 		server.handlers.Cfg.Client = codexKeyScopeClient()
-		for _, key := range []string{"sk-codex-test", "sk-openai-test", "legacy-key"} {
+		for _, key := range []string{"sk-codex-test", "sk-openai-test"} {
 			for _, route := range callRoutes {
 				recorder, ids := selectedBy(http.MethodPost, route.path, key, route.body)
 				if recorder.Code != http.StatusOK || !slices.Equal(ids, []string{"codex-login"}) {

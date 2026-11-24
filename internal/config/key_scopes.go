@@ -43,30 +43,25 @@ func KeyScopeProviderKeys(provider string) []string {
 }
 
 // KeyScope returns the client.key-scopes entry for a client API key: the one
-// with the longest key-prefix the key starts with. An entry that names no
-// provider is a configuration mistake and is skipped rather than locking keys
-// out. ok is false when no entry applies, and the key is unrestricted.
+// with the longest key-prefix the key starts with. Once any entry is configured,
+// scoping fails closed: a key that matches no entry, or whose entry names no
+// provider, gets an empty scope and may use no provider. ok is false only when no
+// entry is configured or the request carries no key, and the key is unrestricted.
 func (c ClientConfig) KeyScope(apiKey string) (scope ClientKeyScope, ok bool) {
 	apiKey = strings.TrimSpace(apiKey)
-	if c.KeyScopes == nil || apiKey == "" {
+	if c.KeyScopes == nil || len(*c.KeyScopes) == 0 || apiKey == "" {
 		return ClientKeyScope{}, false
 	}
 	longest := -1
 	for _, candidate := range *c.KeyScopes {
 		prefix := strings.TrimSpace(candidate.KeyPrefix)
-		if prefix == "" || len(prefix) <= longest || !strings.HasPrefix(apiKey, prefix) || !namesKeyScopeProvider(candidate.Providers) {
+		if prefix == "" || len(prefix) <= longest || !strings.HasPrefix(apiKey, prefix) {
 			continue
 		}
 		scope, longest = candidate, len(prefix)
 	}
-	return scope, longest >= 0
-}
-
-func namesKeyScopeProvider(providers []string) bool {
-	for _, provider := range providers {
-		if NormalizeKeyScopeProvider(provider) != "" {
-			return true
-		}
+	if longest < 0 {
+		return ClientKeyScope{}, true
 	}
-	return false
+	return scope, true
 }

@@ -80,8 +80,8 @@ func TestKeyScopeMatchesLongestPrefix(t *testing.T) {
 		{name: "codex key", apiKey: "sk-codex-abc", want: []string{"codex"}, scoped: true},
 		{name: "muse alias resolves to meta", apiKey: "sk-muse-abc", want: []string{"meta"}, scoped: true},
 		{name: "shorter prefix applies when no longer one matches", apiKey: "sk-other", want: []string{"claude", "codex"}, scoped: true},
-		{name: "entry without providers is skipped", apiKey: "sk-empty-abc", want: []string{"claude", "codex"}, scoped: true},
-		{name: "key matching no entry is unrestricted", apiKey: "admin-key"},
+		{name: "entry without providers allows nothing", apiKey: "sk-empty-abc", want: nil, scoped: true},
+		{name: "key matching no entry allows nothing", apiKey: "admin-key", want: nil, scoped: true},
 		{name: "request without a key is unrestricted", apiKey: ""},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -115,7 +115,7 @@ func TestKeyAllowsProvider(t *testing.T) {
 		{name: "provider in scope", apiKey: "sk-muse-abc", provider: "meta", want: true},
 		{name: "provider named by its alias", apiKey: "sk-muse-abc", provider: "Muse", want: true},
 		{name: "provider out of scope", apiKey: "sk-claude-abc", provider: "meta", want: false},
-		{name: "unrestricted key", apiKey: "admin-key", provider: "meta", want: true},
+		{name: "key matching no entry", apiKey: "admin-key", provider: "meta", want: false},
 		{name: "request without a key", apiKey: "", provider: "meta", want: true},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
@@ -147,9 +147,14 @@ func TestScopeProvidersNarrowsAndRejects(t *testing.T) {
 		t.Fatalf("rejection body = %s", body)
 	}
 
-	providers, errMsg = handler.scopeProviders(keyScopeExecutionContext("admin-key"), keyScopeCodexModel, []string{"codex"})
+	providers, errMsg = handler.scopeProviders(keyScopeExecutionContext(""), keyScopeCodexModel, []string{"codex"})
 	if errMsg != nil || len(providers) != 1 {
-		t.Fatalf("unscoped key = %v, %v; want the providers unchanged", providers, errMsg)
+		t.Fatalf("request without a key = %v, %v; want the providers unchanged", providers, errMsg)
+	}
+
+	// A key matching no key-prefix may use no provider.
+	if _, errMsg = handler.scopeProviders(keyScopeExecutionContext("admin-key"), keyScopeCodexModel, []string{"codex"}); errMsg == nil {
+		t.Fatal("a key matching no entry kept its providers")
 	}
 
 	providers, errMsg = handler.scopeProviders(context.Background(), keyScopeCodexModel, []string{"codex"})
@@ -279,7 +284,7 @@ func TestKeyScopeAppliesToEveryExecutionPath(t *testing.T) {
 
 // A model router can hand a request to an executor plugin, which picks its own
 // credentials. A scoped key may only use the plugin when its scope names the
-// plugin's ID; unscoped keys keep plugin routing.
+// plugin's ID; requests without a key keep plugin routing.
 func TestKeyScopeAppliesToExecutorPlugins(t *testing.T) {
 	const targetPluginID = "plugin-executor"
 	host := &handlerDirectExecutorRouteHost{}
@@ -333,7 +338,7 @@ func TestKeyScopeAppliesToExecutorPlugins(t *testing.T) {
 			if host.lastPluginID != "" {
 				t.Fatalf("a key whose scope lacks the plugin reached %q", host.lastPluginID)
 			}
-			for _, apiKey := range []string{"sk-plugin-abc", "unscoped-key"} {
+			for _, apiKey := range []string{"sk-plugin-abc", ""} {
 				host.lastPluginID = ""
 				if status := execute(keyScopeExecutionContext(apiKey)); status != nil {
 					t.Fatalf("plugin route for %s failed with %d", apiKey, *status)
@@ -405,9 +410,9 @@ func TestScopeModelListFiltersEveryListShape(t *testing.T) {
 		t.Fatal("an emptied list is not valid JSON")
 	}
 
-	admin, _ := keyScopeRequestContext("admin-key")
-	if got := handler.scopeModelList(admin, openAIList); string(got) != string(openAIList) {
-		t.Fatal("an unscoped key must get the list unchanged")
+	keyless, _ := keyScopeRequestContext("")
+	if got := handler.scopeModelList(keyless, openAIList); string(got) != string(openAIList) {
+		t.Fatal("a request without a key must get the list unchanged")
 	}
 	if got := handler.scopeModelList(claude, []byte("not json")); string(got) != "not json" {
 		t.Fatal("a body that is not JSON must pass through unchanged")

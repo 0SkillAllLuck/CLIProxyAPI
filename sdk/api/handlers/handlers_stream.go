@@ -41,7 +41,7 @@ func (h *BaseAPIHandler) HasAlternativeExecutionTarget(ctx context.Context, hand
 	if routeDecision.ExecutorPluginID != "" {
 		return false
 	}
-	providers, normalizedModel, errMsg := h.providersForExecution(modelName, originalRequestedModel, false, routeDecision, execOptions)
+	providers, normalizedModel, errMsg := h.scopedProvidersForExecution(ctx, modelName, originalRequestedModel, false, routeDecision, execOptions)
 	if errMsg != nil {
 		return false
 	}

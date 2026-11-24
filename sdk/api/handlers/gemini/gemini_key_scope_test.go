@@ -44,7 +44,7 @@ func TestGeminiModelDetailAppliesKeyScope(t *testing.T) {
 	}{
 		{"sk-gemini-key", geminiModel, http.StatusOK},
 		{"sk-gemini-key", claudeModel, http.StatusNotFound},
-		{"unscoped-key", claudeModel, http.StatusOK},
+		{"unscoped-key", claudeModel, http.StatusNotFound},
 	} {
 		if got := detail(tc.apiKey, tc.model); got != tc.want {
 			t.Errorf("%s asking for %s: status=%d want=%d", tc.apiKey, tc.model, got, tc.want)
