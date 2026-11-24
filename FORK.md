@@ -65,6 +65,9 @@ git rebase --onto vNEW vOLD patched   # fix conflicts, drop patches upstream mer
 # soon as the push below triggers it. Stop if this lists anything: delete those
 # files in the fork CI commit, push, then disable them in the fork's settings.
 git diff --name-only --diff-filter=AR vOLD vNEW -- .github/workflows
+# Key scopes cover the execution funnels and the routes in internal/api/key_scope.go.
+# A new upstream route that picks a credential without a model needs adding there:
+git diff vOLD vNEW -- internal/api/server_routes.go
 git push origin vNEW                  # describe needs the base tag in the fork
 git push --force-with-lease origin patched
 # Then disable everything active except fork-image.yml:
