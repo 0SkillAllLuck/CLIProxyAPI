@@ -23,7 +23,11 @@ Muse needs no patch: v8.1.2 already serves the Muse CLI endpoints.
 ## Key scopes
 
 Provider names are executor identifiers: `claude`, `codex`, `antigravity`,
-`meta` (Muse), `xai` (Grok), `kimi`, and openai-compatibility entry names.
+`meta` (Muse), `xai` (Grok), `kimi` (kimi.com login), `kimi-ai` (kimi.ai login),
+`aistudio` (the `/v1/ws` relay), and openai-compatibility entry names. Don't name
+an openai-compatibility entry after an alias (`anthropic`, `openai`, `chatgpt`,
+`muse`, `grok`): scoping to it would also grant that subscription provider.
+Never enable `home`: key scopes do not apply in Home mode.
 
 Once any `client.key-scopes` entry exists, scoping fails closed: a client key
 that matches no `key-prefix`, or whose entry lists no provider, may use no
@@ -42,7 +46,7 @@ access:
 client:
   key-scopes:
     - key-prefix: "sk-untrusted-"
-      providers: ["kimi", "glm"]
+      providers: ["kimi", "kimi-ai", "glm"]
     - key-prefix: "sk-personal-"
       providers: ["claude", "codex", "antigravity", "meta", "xai"]
     - key-prefix: "sk-work-"

@@ -15,8 +15,9 @@ import (
 )
 
 // keyScope returns the providers the client API key of the request may use,
-// from its client.key-scopes entry. scoped is false for a key that no entry
-// applies to, which is unrestricted. Key scopes do not apply in Home mode,
+// from its client.key-scopes entry. Once entries exist, a key that matches none
+// gets an empty set. scoped is false only without entries or without a key, and
+// such a request is unrestricted. Key scopes do not apply in Home mode,
 // where Home selects the credential for a model this proxy cannot map to a
 // provider.
 func (h *BaseAPIHandler) keyScope(c *gin.Context) (allowed map[string]struct{}, scoped bool) {
@@ -42,7 +43,7 @@ func (h *BaseAPIHandler) keyScope(c *gin.Context) (allowed map[string]struct{}, 
 
 // KeyAllowsProvider reports whether the request's client API key may use the
 // provider. Routes that serve a single provider without resolving a model call
-// it; an unrestricted key may use every provider.
+// it; an unscoped request may use every provider.
 func (h *BaseAPIHandler) KeyAllowsProvider(c *gin.Context, provider string) bool {
 	allowed, scoped := h.keyScope(c)
 	if !scoped {
@@ -107,7 +108,7 @@ func (h *BaseAPIHandler) scopeProviders(ctx context.Context, modelName string, p
 
 // keyModelFilter returns a predicate that reports whether the request's client
 // API key may use a model: whether a provider in its scope serves the model.
-// scoped is false, and the predicate nil, for an unrestricted key.
+// scoped is false, and the predicate nil, for an unscoped request.
 func (h *BaseAPIHandler) keyModelFilter(c *gin.Context) (allows func(model string) bool, scoped bool) {
 	allowed, scoped := h.keyScope(c)
 	if !scoped {

@@ -448,8 +448,9 @@ client:
   # credential is chosen. Codex web search and voice (/v1/alpha/search, /v1/live, /v1/realtime)
   # always use a Codex credential, so they answer 403 provider_not_allowed unless the scope
   # includes codex. A request that a model router hands to an executor plugin needs the plugin's
-  # ID in providers. The longest matching prefix wins and a full key is also a valid prefix. Keys
-  # that match no entry are unrestricted. providers takes the names credentials register under
+  # ID in providers. The longest matching prefix wins and a full key is also a valid prefix. Once
+  # any entry exists, a key that matches none, or whose entry lists no provider, may use no
+  # provider. providers takes the names credentials register under
   # (claude, codex, gemini, xai, or the name of an openai-compatibility entry); anthropic, openai,
   # chatgpt, muse and grok are accepted aliases. Key scopes do not apply in Home mode.
   # key-scopes:

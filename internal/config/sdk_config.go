@@ -132,7 +132,7 @@ type ClientConfig struct {
 
 	// KeyScopes limits client API keys to the credentials of the providers they list.
 	// A scoped key only sees those providers' models and can only send requests to them.
-	// Keys that match no entry are unrestricted. The list sits behind a pointer so that
+	// Once it has entries, a key that matches none may use no provider. The list sits behind a pointer so that
 	// ClientConfig stays comparable with ==.
 	KeyScopes *[]ClientKeyScope `yaml:"key-scopes,omitempty" json:"key-scopes,omitempty"`
 }
